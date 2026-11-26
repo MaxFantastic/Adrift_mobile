@@ -1,0 +1,44 @@
+{
+  "initial": {
+    "wood": 8,
+    "fiber": 4,
+    "scrap": 2
+  },
+  "maxTiles": 64,
+  "coordinateLimit": 12,
+  "refundRate": 0.5,
+  "maxFloats": 14,
+  "startingDrops": [
+    {"type":"wood","u":0.22,"v":0.42},
+    {"type":"wood","u":0.74,"v":0.60},
+    {"type":"fiber","u":0.76,"v":0.35}
+  ],
+  "spawnSeconds": [
+    2.5,
+    4.5
+  ],
+  "current": [
+    0.07,
+    0.018
+  ],
+  "collectionSeconds": 0.45,
+  "maxCollections": 3,
+  "buildSeconds": 0.3,
+  "daySeconds": 480,
+  "phases": [
+    0,
+    0.6,
+    0.75,
+    0.9,
+    1
+  ],
+  "autosaveSeconds": 10,
+  "maxLog": 32,
+  "maxImportBytes": 131072,
+  "gestureThreshold": 8,
+  "zoomRange": [
+    0.65,
+    2
+  ],
+  "dprCap": 2
+}

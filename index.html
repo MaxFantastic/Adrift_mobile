@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#96c7bf">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="在翡翠浅海收起漂流物，用一块块甲板搭建自己的海上家园。">
+<title>ADRIFT · 漂流之境</title>
+<link rel="icon" href="./assets/icon-192.png">
+<link rel="apple-touch-icon" href="./assets/icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./css/main.css">
+</head>
+<body>
+<div id="app" data-view="cover">
+  <canvas id="sea" aria-label="翡翠浅海游戏场景。轻触收集漂浮物，拖动平移视角。"></canvas>
+  <header class="mast">
+    <div class="brand"><span class="brand-symbol" data-icon="mark"></span><b>ADRIFT</b><span class="brand-divider"></span><span class="brand-zh">漂流之境</span></div>
+    <div class="mast-tools">
+      <span class="day-status game-only" id="day"></span>
+      <button class="round" id="sound" aria-label="关闭声音"></button>
+      <button class="round" id="settings" aria-label="设置"><span data-icon="settings"></span></button>
+    </div>
+  </header>
+  <div id="hud" class="game-only" aria-label="资源库存"></div>
+  <main id="cover" class="cover-only">
+    <div class="cover-title">
+      <div class="location"><i></i><span>翡翠浅海</span><span class="slash">/</span><span lang="en">EMERALD SHOALS</span></div>
+      <h1 lang="en">ADRIFT</h1>
+      <div class="subtitle"><span></span>漂流之境</div>
+    </div>
+    <div class="cover-action">
+      <p>海水漫过了陆地。<br>从几块木板开始，在漂流中造一个家。</p>
+      <button id="start" class="primary start" disabled><span data-icon="play"></span><span id="start-label">准备海面…</span></button>
+    </div>
+  </main>
+  <footer class="cover-footer cover-only">
+    <span class="edition"><i></i> DEMO <span id="release">v0.1</span></span>
+    <div class="gestures"><span><i data-icon="pointer"></i>轻触收集</span><span><i data-icon="drag"></i>拖动环顾</span><span><i data-icon="zoom"></i><b class="mobile-label">双指缩放</b><b class="desktop-label">滚轮缩放</b></span></div>
+  </footer>
+  <div class="game-only game-controls">
+    <button id="home" class="round" aria-label="回到木筏" title="回到木筏"><i data-icon="center"></i></button>
+    <div id="guide" hidden><span id="guide-text"></span><button id="skip">跳过</button></div>
+    <nav id="nav" aria-label="木筏操作">
+      <button data-panel="build"><i data-icon="build"></i>建造</button>
+      <button data-panel="bag"><i data-icon="bag"></i>背包</button>
+      <button data-panel="log"><i data-icon="log"></i>日志</button>
+    </nav>
+    <div id="tool" hidden><button id="back" aria-label="取消建造"><i data-icon="close"></i></button><div><b id="tool-title"></b><span id="tool-note"></span></div><button id="confirm" class="primary">确认</button></div>
+  </div>
+  <div id="toast" role="status" hidden></div>
+  <div id="overlay" hidden><section id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="handle"></div><div class="sheet-head"><h2 id="sheet-title"></h2><button id="dismiss" class="round" aria-label="关闭面板"><i data-icon="close"></i></button></div><div id="content"></div></section></div>
+  <input hidden id="file" type="file" accept=".json,application/json">
+  <noscript>请启用 JavaScript 后开始漂流。</noscript>
+</div>
+<script type="module" src="./js/main.js"></script>
+</body></html>

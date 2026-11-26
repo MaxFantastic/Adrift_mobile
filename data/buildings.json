@@ -1,0 +1,51 @@
+{
+  "deck": {
+    "name": "甲板",
+    "cost": {
+      "wood": 4,
+      "fiber": 1
+    },
+    "info": "将一块木甲板拼接到木筏边缘。"
+  },
+  "crate": {
+    "name": "储物木箱",
+    "cost": {
+      "wood": 3,
+      "fiber": 1
+    },
+    "info": "绳索捆扎的装饰木箱。库存容量不限。"
+  },
+  "cabin": {
+    "name": "小木屋",
+    "cost": {
+      "wood": 8,
+      "fiber": 3
+    },
+    "info": "一间遮风的小屋，入夜后窗边会亮起灯。"
+  },
+  "planter": {
+    "name": "种植箱",
+    "cost": {
+      "wood": 4,
+      "fiber": 2
+    },
+    "info": "甲板上的一小片绿意，仅作装饰。"
+  },
+  "lantern": {
+    "name": "路灯",
+    "cost": {
+      "wood": 2,
+      "scrap": 2
+    },
+    "info": "夜色渐深时，为木筏点亮一盏暖灯。"
+  },
+  "sail": {
+    "name": "船帆",
+    "cost": {
+      "wood": 5,
+      "fiber": 4,
+      "scrap": 1
+    },
+    "info": "随海风轻摆的装饰帆，航向保持不变。"
+  }
+}

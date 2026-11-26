@@ -1,0 +1,39 @@
+{
+  "resources": {
+    "wood": "木材",
+    "fiber": "纤维",
+    "scrap": "废金属"
+  },
+  "drops": {
+    "wood": {
+      "name": "漂流木板",
+      "weight": 50,
+      "reward": {
+        "wood": 2
+      }
+    },
+    "fiber": {
+      "name": "漂流海草",
+      "weight": 30,
+      "reward": {
+        "fiber": 2
+      }
+    },
+    "scrap": {
+      "name": "金属残片",
+      "weight": 15,
+      "reward": {
+        "scrap": 1
+      }
+    },
+    "cache": {
+      "name": "漂流木箱",
+      "weight": 5,
+      "reward": {
+        "wood": 3,
+        "fiber": 1,
+        "scrap": 1
+      }
+    }
+  }
+}
