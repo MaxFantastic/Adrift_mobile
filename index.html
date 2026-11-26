@@ -6,16 +6,17 @@
 <meta name="theme-color" content="#96c7bf">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="description" content="在翡翠浅海收起漂流物，用一块块甲板搭建自己的海上家园。">
+<meta name="description" content="在翡翠浅海搜集材料、过滤淡水、钓鱼，把几块甲板慢慢搭成海上的家。">
 <title>ADRIFT · 漂流之境</title>
 <link rel="icon" href="./assets/icon-192.png">
 <link rel="apple-touch-icon" href="./assets/icon-192.png">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="stylesheet" href="./css/main.css">
+<link rel="stylesheet" href="./css/survival.css">
 </head>
 <body>
 <div id="app" data-view="cover">
-  <canvas id="sea" aria-label="翡翠浅海游戏场景。轻触收集漂浮物，拖动平移视角。"></canvas>
+  <canvas id="sea" aria-label="翡翠浅海游戏场景。拖动平移视角，使用底部操作栏开始行动。"></canvas>
   <header class="mast">
     <div class="brand"><span class="brand-symbol" data-icon="mark"></span><b>ADRIFT</b><span class="brand-divider"></span><span class="brand-zh">漂流之境</span></div>
     <div class="mast-tools">
@@ -24,7 +25,17 @@
       <button class="round" id="settings" aria-label="设置"><span data-icon="settings"></span></button>
     </div>
   </header>
-  <div id="hud" class="game-only" aria-label="资源库存"></div>
+  <section id="survival-hud" class="game-only" aria-label="补给与材料">
+    <div class="supplies">
+      <button data-panel="bag" class="supply"><i data-icon="water"></i><span>淡水<b id="supply-water">0</b></span></button>
+      <button data-panel="bag" class="supply"><i data-icon="fish"></i><span>食物<b id="supply-food">0</b></span></button>
+      <div class="vitals">
+        <div><span>体力</span><progress id="energy" aria-label="体力" value="100" max="100"></progress><b id="energy-value">100</b></div>
+        <div><span>水分</span><progress id="hydration" aria-label="水分" value="100" max="100"></progress><b id="hydration-value">100</b></div>
+      </div>
+    </div>
+    <div id="hud" aria-label="材料库存"></div>
+  </section>
   <main id="cover" class="cover-only">
     <div class="cover-title">
       <div class="location"><i></i><span>翡翠浅海</span><span class="slash">/</span><span lang="en">EMERALD SHOALS</span></div>
@@ -32,21 +43,33 @@
       <div class="subtitle"><span></span>漂流之境</div>
     </div>
     <div class="cover-action">
-      <p>海水漫过了陆地。<br>从几块木板开始，在漂流中造一个家。</p>
+      <p>海水漫过了陆地。<br>搜集、钓鱼，在漂流中慢慢造一个家。</p>
       <button id="start" class="primary start" disabled><span data-icon="play"></span><span id="start-label">准备海面…</span></button>
     </div>
   </main>
   <footer class="cover-footer cover-only">
     <span class="edition"><i></i> DEMO <span id="release">v0.1</span></span>
-    <div class="gestures"><span><i data-icon="pointer"></i>轻触收集</span><span><i data-icon="drag"></i>拖动环顾</span><span><i data-icon="zoom"></i><b class="mobile-label">双指缩放</b><b class="desktop-label">滚轮缩放</b></span></div>
+    <div class="gestures"><span><i data-icon="drag"></i>拖动环顾</span><span><i data-icon="zoom"></i><b class="mobile-label">双指缩放</b><b class="desktop-label">滚轮缩放</b></span></div>
   </footer>
   <div class="game-only game-controls">
-    <button id="home" class="round" aria-label="回到木筏" title="回到木筏"><i data-icon="center"></i></button>
-    <div id="guide" hidden><span id="guide-text"></span><button id="skip">跳过</button></div>
+    <div id="raft-controls">
+      <button id="raft-menu" data-panel="build"><i data-icon="build"></i><span>木筏 <b id="raft-level">Lv.1</b></span></button>
+      <button id="home" class="round" aria-label="回到木筏" title="回到木筏"><i data-icon="center"></i></button>
+    </div>
+    <section id="voyage" aria-label="当前行动">
+      <span class="voyage-icon" id="voyage-icon"></span>
+      <div class="voyage-copy">
+        <b id="voyage-title"></b><span id="voyage-note"></span>
+        <progress id="voyage-progress" aria-label="行动进度" value="0" max="1" hidden></progress>
+      </div>
+      <button id="depart" class="primary"></button>
+    </section>
     <nav id="nav" aria-label="木筏操作">
-      <button data-panel="build"><i data-icon="build"></i>建造</button>
+      <button data-panel="gather"><i data-icon="wave"></i>收集</button>
+      <button data-panel="hunt"><i data-icon="fish"></i>捕猎</button>
+      <button data-panel="bench"><i data-icon="bench"></i>工作台</button>
+      <button data-panel="lighthouse"><i data-icon="lighthouse"></i>灯塔</button>
       <button data-panel="bag"><i data-icon="bag"></i>背包</button>
-      <button data-panel="log"><i data-icon="log"></i>日志</button>
     </nav>
     <div id="tool" hidden><button id="back" aria-label="取消建造"><i data-icon="close"></i></button><div><b id="tool-title"></b><span id="tool-note"></span></div><button id="confirm" class="primary">确认</button></div>
   </div>

@@ -2,7 +2,8 @@ import {Camera} from './render/camera.js';
 import {Scene} from './render/scene.js';
 import {Drift} from './systems/resource.js';
 import {placement,removal,refund,tileAt,candidates} from './systems/building.js';
-import {initialState,build,demolish,credit,record} from './core/state.js';
+import {initialState,record} from './core/state.js';
+import {checkRain,consume,finishTask,navForJob,planTask,remainingTime,startTask} from './systems/survival.js';
 import {paletteAt,timeOfDay} from './core/clock.js';
 import {Engine} from './core/engine.js';
 import {Saves,parseSave} from './core/save.js';
@@ -13,7 +14,7 @@ import {bindGestures} from './ui/touch.js';
 import {icon} from './ui/icons.js';
 
 const prefix='adrift:'+new URL('.',document.baseURI).pathname+':';
-const guide=['轻触海上的木板，收起第一份材料','打开建造，沿木筏边缘拼一块甲板','在空甲板上放一个设施，试试储物木箱'];
+const glyphs={gather:'wave',hunt:'fish',bench:'bench',lighthouse:'lighthouse',bag:'bag',build:'build'};
 for(const e of document.querySelectorAll('[data-icon]'))e.innerHTML=icon(e.dataset.icon);
 function tips(text) {
   const e=el('toast');e.textContent=text;e.hidden=false;
@@ -46,7 +47,6 @@ class Game {
     this.lastDay='';this.observer=new ResizeObserver(()=>this.scene.resize());this.observer.observe(el('sea'));
   }
   motion(){return this.prefs.motion??!this.reduce.matches;}
-  guideText(full=false){return this.state.tutorial.completed?(full?'引导已结束，自由建造你的海上家园。':''):guide[this.state.tutorial.step];}
   async init(){
     this.connect();this.setSoundIcon();
     const recovered=await this.saves.load();
@@ -61,10 +61,19 @@ class Game {
     el('start').onclick=()=>{this.audio.unlock();this.audio.play('build');this.newGame();};
     el('settings').onclick=()=>{this.audio.unlock();this.panels.open('settings');};
     el('sound').onclick=()=>this.preference('sound');
-    el('home').onclick=()=>{this.camera.reset(this.state.raft.tiles);tips('已回到木筏');};
-    el('skip').onclick=()=>{this.state.tutorial={step:3,completed:true};this.changed();};
+    el('home').onclick=()=>this.camera.reset(this.state.raft.tiles);
     el('back').onclick=()=>this.cancel();
     el('confirm').onclick=()=>this.confirm();
+    el('depart').onclick=()=>{
+      this.audio.unlock();
+      const task=this.state.survival.task;
+      if(task) this.panels.open(navForJob[task.id]);
+      else if(!this.startAction('gather')) this.panels.open('bag');
+    };
+    const syncAudio=()=>this.audio.setActive(!document.hidden);
+    document.addEventListener('visibilitychange',syncAudio);
+    window.addEventListener('pagehide',()=>this.audio.setActive(false));
+    window.addEventListener('pageshow',syncAudio);
     for(const b of document.querySelectorAll('[data-panel]'))b.onclick=()=>{
       this.audio.unlock();this.audio.play('tap');this.panels.open(b.dataset.panel);
     };
@@ -87,9 +96,10 @@ class Game {
     try{localStorage.setItem(prefix+'settings',JSON.stringify(this.prefs));}catch{tips('设置只在本次游玩中生效');}
   }
   enter(state) {
-    this.state=state;this.playing=true;this.tool=null;this.lastDay='';
+    this.state=state;this.playing=true;this.tool=null;this.lastDay='';this.lastTaskSecond=-1;
     this.panels.close();el('app').dataset.view='game';
-    this.camera.reset(state.raft.tiles);this.scene.reset();this.drift.seed(this.camera);this.hud();this.toolbar();
+    this.camera.reset(state.raft.tiles);this.scene.reset();this.drift.seed(this.camera);
+    checkRain(this.state,this.cfg);this.hud();this.toolbar();
   }
   newGame(){
     const s=initialState(this.cfg);record(s,this.cfg,'抵达翡翠浅海，开始漂流');
@@ -98,12 +108,24 @@ class Game {
   persist(replace=false){return this.playing?this.saves.save(this.state,replace):Promise.resolve(true);}
   changed(){this.hud();this.toolbar();this.persist();}
   frame(dt){
-    if(this.playing)this.state.clock.elapsedSeconds+=dt;
-    if(this.playing)this.drift.update(dt,this.camera);
+    if(this.playing){
+      this.state.clock.elapsedSeconds+=dt;
+      const now=Date.now(),second=Math.floor(now/1000);
+      if(second!==this.lastTaskSecond){
+        this.lastTaskSecond=second;
+        this.settle(now);
+        const rain=checkRain(this.state,this.cfg);
+        if(rain){this.changed();this.refreshSheet();tips(rain);}
+        this.syncCountdown(now);
+      }
+      this.drift.update(dt,this.camera);
+    }
     this.scene.render(dt,this.state,this.drift,!this.playing,this.motion(),this.tool);
     if(this.playing){
-      const d=timeOfDay(this.state.clock.elapsedSeconds,this.cfg.balance),stamp=d.day+d.label;
-      if(stamp!==this.lastDay){this.lastDay=stamp;el('day').innerHTML=icon(d.index===2?'moon':'sun',18)+'第 '+String(d.day).padStart(2,'0')+' 天 · '+d.label;}
+      const d=timeOfDay(this.state.clock.elapsedSeconds,this.cfg.balance);
+      const rain=this.state.survival.rainUntil>this.state.clock.elapsedSeconds;
+      const stamp=d.day+(rain?'阵雨':d.label);
+      if(stamp!==this.lastDay){this.lastDay=stamp;el('day').innerHTML=icon(rain?'water':d.index===2?'moon':'sun',18)+'第 '+String(d.day).padStart(2,'0')+' 天 · '+(rain?'阵雨':d.label);}
     }
     return this.playing;
   }
@@ -114,13 +136,68 @@ class Game {
       if(!item){item=document.createElement('div');item.className='resource';item.id='res-'+id;item.innerHTML=icon(id)+'<span>'+resources[id]+'</span><b></b>';el('hud').append(item);}
       item.querySelector('b').textContent=String(v).padStart(2,'0');
     }
-    el('guide-text').textContent=this.guideText();
+    const s=this.state.survival;
+    for(const id of ['water','food'])el('supply-'+id).textContent=s[id];
+    for(const id of ['energy','hydration']){
+      el(id).max=this.cfg.balance.survival.maxVital;
+      el(id).value=s[id];
+      el(id+'-value').textContent=s[id];
+    }
+    el('raft-level').textContent='Lv.'+s.raftLevel;
+    this.syncCountdown();
+  }
+  syncCountdown(now=Date.now()) {
+    const s=this.state.survival,t=s.task;
+    const job=t?planTask(this.state,this.cfg,t.id,t.target,true):planTask(this.state,this.cfg,'gather');
+    const panel=t?navForJob[t.id]:'gather';
+    if(el('voyage-icon').dataset.panel!==panel){
+      el('voyage-icon').dataset.panel=panel;
+      el('voyage-icon').innerHTML=icon(glyphs[panel],23);
+    }
+    el('voyage').classList.toggle('busy',!!t);
+    el('voyage-title').textContent=job.label;
+    const progress=el('voyage-progress');
+    progress.hidden=!t;
+    const note=el('voyage-note');
+    if(t){
+      const left=remainingTime((t.endsAt-now)/1000);
+      note.textContent='剩余 '+left+' · 完成后自动入账';
+      progress.value=Math.max(0,Math.min(1,(now-t.startedAt)/(t.endsAt-t.startedAt)));
+      const timer=document.querySelector('.drawer-timer');
+      if(timer)timer.textContent=' · '+job.label+' · '+left;
+    }else note.textContent=job.reason||job.minutes+' 分钟 · 体力 −'+job.energy+' / 水分 −'+job.hydration;
+    el('depart').textContent=t?'查看':job.reason?'去补给':'开始';
+  }
+  refreshSheet(){
+    const kind=this.panels.kind;
+    if(kind&&kind!=='confirm'&&kind!=='detail'&&kind!=='settings')this.panels.open(kind);
+  }
+  settle(now){
+    const result=finishTask(this.state,this.cfg,now);
+    if(!result)return;
+    if(result.target)this.scene.built(result.target.item,result.target.x,result.target.y);
+    this.audio.play(result.target?'build':'collect');
+    this.changed();this.refreshSheet();tips(result.text);
+  }
+  startAction(id,target=null){
+    const now=Date.now();
+    this.settle(now);
+    const result=startTask(this.state,this.cfg,id,target,now);
+    if(!result.ok){tips(result.reason);return false;}
+    this.panels.close();this.tool=null;
+    this.audio.play('tap');this.changed();
+    return true;
+  }
+  useSupply(id){
+    const result=consume(this.state,this.cfg,id);
+    if(result.ok){this.changed();this.refreshSheet();}
+    tips(result.ok?result.text:result.reason);
   }
   selectTool(id){this.tool={id,cells:[],selected:null,reason:''};this.toolbar();}
   cancel(){if(this.tool?.selected)this.tool.selected=null;else this.tool=null;this.toolbar();}
   toolbar() {
     el('nav').hidden=!!this.tool;el('tool').hidden=!this.tool;
-    el('guide').hidden=!!this.tool||this.state.tutorial.completed;
+    el('voyage').hidden=!!this.tool;el('raft-controls').hidden=!!this.tool;
     if(!this.tool)return;
     const t=this.tool,s=t.selected,id=t.id;
     t.cells=id==='remove'?this.state.raft.tiles.filter(v=>!removal(this.state,v.x,v.y,v.buildingId?'facility':'deck')):candidates(this.state,this.cfg,id);
@@ -128,7 +205,8 @@ class Game {
     const title=id==='remove'?'拆除':this.cfg.buildings[id].name;
     el('tool-title').textContent=s&&id==='remove'?'拆除'+this.cfg.buildings[s.target||'deck'].name:title;
     const desc=id==='remove'?'选择设施或可拆甲板':id==='deck'?'轻触相邻的高亮格':'轻触空甲板预览';
-    let hint=t.reason||(!s?desc:id==='remove'?'确认拆除，返还一半材料':'位置可建，点击确认');
+    if(!t.reason&&this.state.survival.task)t.reason='当前行动完成后即可施工';
+    let hint=t.reason||(!s?desc:id==='remove'?'拆除耗时 15 分钟，返还一半材料':'位置可建 · 施工耗时 15 分钟');
     if(!s&&id!=='remove'){
       const v=t.cells[0];if(v){const reason=placement(this.state,this.cfg,id,v.x,v.y);if(reason)hint=reason;}
       else hint=id==='deck'?'已到达扩建上限':'需要先扩建一块空甲板';
@@ -145,32 +223,17 @@ class Game {
       const t=tileAt(this.state.raft.tiles,pos.x,pos.y);
       this.tool.selected={...pos,layer:t?.buildingId?'facility':'deck',target:t?.buildingId||'deck'};this.toolbar();return;
     }
-    if(hit?.item){
-      const collected=this.drift.collect(hit.item.id,id=>credit(this.state,this.cfg,id));
-      if(!collected)return;
-      const targets=Object.entries(this.cfg.items.drops[collected.type].reward).map(([id,n])=>{
-        const r=el('res-'+id).getBoundingClientRect();return {id,n,x:r.left+r.width/2,y:r.bottom};
-      });
-      this.scene.collect(collected,targets);this.audio.play('collect');this.changed();
-    }else if(hit?.tile?.buildingId)this.panels.inspect(hit.tile);
+    if(hit?.tile?.buildingId)this.panels.inspect(hit.tile);
   }
   confirm(){
     const t=this.tool,s=t?.selected;if(!s||t.reason)return;
     if(t.id==='remove'){
       const result=refund(this.cfg.buildings[s.target].cost,this.cfg.balance.refundRate);
       const label=Object.entries(result).filter(([,v])=>v).map(([k,v])=>this.cfg.items.resources[k]+' '+v).join('、');
-      this.panels.ask('拆除'+this.cfg.buildings[s.target].name+'？','材料将返还至背包：'+label+'。','确认拆除',()=>{
-        const out=demolish(this.state,this.cfg,s.x,s.y,s.layer);
-        if(out.ok){t.selected=null;this.audio.play('remove');this.changed();tips('已拆除，材料已回收');}else tips(out.reason);
-      });
+      this.panels.ask('拆除'+this.cfg.buildings[s.target].name+'？','15 分钟后返还材料 '+label+'。','确认拆除',
+        ()=>this.startAction('demolish',{x:s.x,y:s.y,layer:s.layer}));
     }else{
-      const guidedExtension=t.id==='deck'&&this.state.tutorial.step===1;
-      const result=build(this.state,this.cfg,t.id,s.x,s.y);
-      if(!result.ok){this.toolbar();tips(result.reason);return;}
-      this.scene.built(t.id,s.x,s.y);this.audio.play('build');t.selected=null;
-      // The guided first extension leads directly back to the building chooser.
-      if(guidedExtension)this.tool=null;
-      this.changed();tips(this.cfg.buildings[t.id].name+'已建成');
+      this.startAction('build',{item:t.id,x:s.x,y:s.y});
     }
   }
   exportSave(){

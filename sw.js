@@ -1,13 +1,13 @@
 // Keep this release list atomic. tests/release.test.js checks its completeness.
-const VERSION='0.1.0';
+const VERSION='0.2.0';
 const SCOPE=self.registration.scope;
 const PREFIX='adrift:'+SCOPE+':runtime:';
 const CACHE=PREFIX+VERSION;
 const FILES=[
-  'index.html','css/main.css','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png',
+  'index.html','css/main.css','css/survival.css','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png',
   'data/balance.json','data/items.json','data/buildings.json','data/release.json',
   'js/main.js','js/core/engine.js','js/core/clock.js','js/core/state.js','js/core/save.js','js/core/audio.js','js/core/updates.js',
-  'js/systems/building.js','js/systems/resource.js','js/ui/icons.js','js/ui/touch.js','js/ui/panels.js',
+  'js/systems/building.js','js/systems/resource.js','js/systems/survival.js','js/ui/icons.js','js/ui/touch.js','js/ui/panels.js',
   'js/render/camera.js','js/render/models.js','js/render/ocean.js','js/render/sprites.js','js/render/scene.js','js/render/character.js'
 ];
 const urls=new Set(FILES.map(f=>new URL(f,SCOPE).href));

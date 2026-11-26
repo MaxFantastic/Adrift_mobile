@@ -1,10 +1,19 @@
 import {foundation,placement,removal,refund,tileAt} from '../systems/building.js';
 
+export function initialSurvival(cfg) {
+  const rules = cfg.balance.survival;
+  return {
+    energy:rules.maxVital, hydration:rules.maxVital, water:rules.initialWater, food:rules.initialFood,
+    raftLevel:1, benchLevel:0, lighthouseLevel:0, rodLevel:0, netLevel:0,
+    task:null, rainAt:null, rainUntil:0
+  };
+}
+
 export function initialState(cfg) {
   const tiles = [[0,0],[1,0],[0,1],[1,1]].map(([x,y]) => ({x,y,foundation:true,buildingId:null}));
   return {schemaVersion:cfg.version.schemaVersion,gameVersion:cfg.version.version,savedAt:null,
     clock:{elapsedSeconds:0},inventory:{...cfg.balance.initial},raft:{tiles},
-    tutorial:{step:0,completed:false},log:[]};
+    tutorial:{step:0,completed:false},log:[],survival:initialSurvival(cfg)};
 }
 
 export function record(state,cfg,text) {
@@ -22,10 +31,10 @@ export function credit(state,cfg,type) {
   record(state,cfg,'收起' + name + ' · ' + Object.entries(reward).map(([k,n]) => cfg.items.resources[k] + ' +' + n).join('，'));
   tutorial(state,0);
 }
-export function build(state,cfg,id,x,y) {
-  const reason = placement(state,cfg,id,x,y);
+export function build(state,cfg,id,x,y,prepaid=false) {
+  const reason = placement(state,cfg,id,x,y,!prepaid);
   if (reason) return {ok:false,reason};
-  for (const [k,n] of Object.entries(cfg.buildings[id].cost)) state.inventory[k] -= n;
+  if (!prepaid) for (const [k,n] of Object.entries(cfg.buildings[id].cost)) state.inventory[k] -= n;
   if (id === 'deck') state.raft.tiles.push({x,y,foundation:foundation(x,y),buildingId:null});
   else tileAt(state.raft.tiles,x,y).buildingId = id;
   record(state,cfg,'建成' + cfg.buildings[id].name);

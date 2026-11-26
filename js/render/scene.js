@@ -38,7 +38,7 @@ export class Scene {
   constructor(canvas,camera,cfg) {
     this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});this.camera=camera;this.cfg=cfg;
     this.ocean=new Ocean();this.sprites=new Sprites();this.walker=new Walker();this.hitList=[];this.animations=[];
-    this.flights=[];this.time=0;this.palTime=-Infinity;this.palette=paletteAt(0,cfg.balance);
+    this.time=0;this.palTime=-Infinity;this.palette=paletteAt(0,cfg.balance);
     this.resize();
   }
   resize() {
@@ -46,12 +46,8 @@ export class Scene {
     this.camera.resize(r.width,r.height);this.canvas.width=Math.round(r.width*dpr);this.canvas.height=Math.round(r.height*dpr);
     this.ctx.setTransform(dpr,0,0,dpr,0,0);
   }
-  reset(){this.animations=[];this.flights=[];this.walker.reset();this.palTime=-Infinity;}
+  reset(){this.animations=[];this.walker.reset();this.palTime=-Infinity;}
   built(id,x,y){this.animations.push({id,x,y,t:0});}
-  collect(item,targets) {
-    if(this.flights.length>=this.cfg.balance.maxCollections)return;
-    this.flights.push({item,targets,t:0});this.walker.left=this.camera.project(item.x,item.y).x<this.camera.project(this.walker.x,this.walker.y).x;
-  }
   coverCamera() {
     const {width:w,height:h}=this.camera;
     const tall=w<=680&&h>w;
@@ -71,12 +67,11 @@ export class Scene {
     const view=cover?this.coverCamera():cam,u=view.unit;
     const tiles=cover?coverTiles:byDepth(state.raft.tiles);
     const p=(x,y,z=0)=>view.project(x,y,z);
+    const task=cover?null:state.survival.task;
     if(!cover){
       this.walker.update(dt,tiles,motion);
       for(const a of this.animations)a.t+=dt;
       this.animations=this.animations.filter(a=>a.t<this.cfg.balance.buildSeconds);
-      for(const a of this.flights)a.t+=dt;
-      this.flights=this.flights.filter(a=>a.t<this.cfg.balance.collectionSeconds);
     }
     const visible=q=>q.x>-u&&q.x<w+u&&q.y>-u&&q.y<h+2*u;
     const live=tiles.filter(t=>visible(p(t.x,t.y)));
@@ -108,7 +103,7 @@ export class Scene {
       const q=p(o.x,o.y,-.12);q.y+=Math.sin(time*1.2+o.seed)*1.5;
       ripple(ctx,q,u*.78,time+o.seed,palette.wave);
       ellipse(ctx,q.x+u*.038,q.y+u*.033,u*.20,u*.048,'rgba(44,87,82,.15)');
-      this.sprites.at(ctx,o.type,q,u*1.15,palette);this.hitList.push({item:o,p:q});
+      this.sprites.at(ctx,o.type,q,u*1.15,palette);
     };
     for(const o of byDepth(floats))drawFloat(o);
     // Opaque hulls cover passing flotsam. All facilities stand above the floor.
@@ -132,20 +127,58 @@ export class Scene {
       for(const t of tool.cells)outline(t.x,t.y,'rgba(170,239,213,.36)','#488b7a');
       const s=tool.selected;if(s)outline(s.x,s.y,tool.reason?'rgba(241,158,133,.65)':'rgba(189,255,225,.78)',tool.reason?'#a34d39':'#266e60');
     }
-    const actor=cover?{x:.63,y:.82}:this.walker;
+    const shore=tiles.at(-1);
+    const swimming=task?.id==='gather';
+    const fishing=task?.id==='fish'||task?.id==='netFish';
+    const actor=cover?{x:.63,y:.82}:swimming?{x:shore.x+.30+Math.sin(time*.7)*.36,y:shore.y+1.14}:
+      fishing?{x:shore.x+.23,y:shore.y+.27}:this.walker;
     const figures=live.filter(t=>t.buildingId).map(t=>({...t,type:t.buildingId}));
     figures.push({...actor,type:'person'});
     if(cover)figures.push({x:2.27,y:.22,type:'mooring'},{x:1.22,y:1.27,type:'mooring'});
     if(!cover && empty(0,2))figures.push({x:-.35,y:1.36,type:'mooring',scale:.73});
     for(const a of byDepth(figures)){
-      const q=p(a.x,a.y,lift(a.x,a.y,a.type));
+      const swimmer=swimming&&a.type==='person';
+      const q=p(a.x,a.y,swimmer?-.33+Math.sin(time*2)*.028:lift(a.x,a.y,a.type));
       if(!visible(q))continue;
-      if(a.type==='person')ellipse(ctx,q.x+u*.04,q.y+u*.02,u*.13,u*.047,'rgba(69,64,51,.17)');
-      const box=this.sprites.at(ctx,a.type,q,u*(a.scale||1),palette,{hook:a.type==='person'&&this.flights.length>0,mirror:a.type==='person'&&!cover&&this.walker.left});
+      if(swimmer){
+        ctx.save();ctx.beginPath();ctx.rect(0,0,w,q.y-u*.19);ctx.clip();
+      }else if(a.type==='person')ellipse(ctx,q.x+u*.04,q.y+u*.02,u*.13,u*.047,'rgba(69,64,51,.17)');
+      const box=this.sprites.at(ctx,a.type,q,u*(a.scale||1),palette,{hook:a.type==='person'&&fishing,mirror:a.type==='person'&&!cover&&!fishing&&this.walker.left});
+      if(swimmer){
+        ctx.restore();ripple(ctx,{x:q.x,y:q.y-u*.19},u*.72,time,palette.wave);
+      }
       if(a.type!=='person'&&a.type!=='mooring')this.hitList.push({tile:a,box,facility:true});
     }
     if(tool?.selected&&!tool.reason&&tool.id!=='remove'){
       const {x,y}=tool.selected;ctx.save();ctx.globalAlpha=.64;this.sprites.at(ctx,tool.id,p(x,y,.055),u,palette);ctx.restore();
+    }
+    if(task?.id==='build'){
+      const {x,y,item}=task.target;
+      ctx.save();ctx.globalAlpha=.3;this.sprites.at(ctx,item,p(x,y,.045),u,palette);ctx.restore();
+    }
+    if(fishing){
+      const hand=p(actor.x,actor.y,.29), tip=p(actor.x+.55,actor.y-.24,.56);
+      const float=p(actor.x+1.0,actor.y+.12,-.14+Math.sin(time*1.8)*.014);
+      if(task.id==='netFish'){
+        ctx.strokeStyle=palette.wall;ctx.lineWidth=.85;ctx.beginPath();ctx.moveTo(hand.x,hand.y);
+        ctx.quadraticCurveTo(float.x+u*.12,hand.y+u*.25,float.x,float.y);ctx.stroke();
+        ctx.save();ctx.translate(float.x,float.y);ctx.scale(1,.55);
+        ctx.fillStyle=palette.shade;ctx.globalAlpha=.30;ctx.beginPath();ctx.arc(0,0,u*.24,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=.78;ctx.stroke();ctx.clip();
+        for(let i=-2;i<=2;i++){
+          const x=i*u*.095;
+          ctx.beginPath();ctx.moveTo(x-u*.24,-u*.24);ctx.lineTo(x+u*.24,u*.24);
+          ctx.moveTo(x+u*.24,-u*.24);ctx.lineTo(x-u*.24,u*.24);ctx.stroke();
+        }
+        ctx.restore();
+      }else{
+        ctx.lineWidth=Math.max(1,u*.017);ctx.strokeStyle=palette.wood;
+        ctx.beginPath();ctx.moveTo(hand.x,hand.y);ctx.lineTo(tip.x,tip.y);ctx.stroke();
+        ctx.lineWidth=.8;ctx.strokeStyle=palette.wall;ctx.beginPath();ctx.moveTo(tip.x,tip.y);
+        ctx.quadraticCurveTo(float.x+u*.09,tip.y+u*.12,float.x,float.y);ctx.stroke();
+        ellipse(ctx,float.x,float.y,Math.max(2,u*.026),Math.max(1.4,u*.022),palette.roof);
+      }
+      ripple(ctx,float,u*.33,time,palette.wave);
     }
     if(cover){
       const a=p(1.22,1.27,.17),b=p(2.27,.22,.17);
@@ -162,28 +195,19 @@ export class Scene {
       for(let i=0;i<8;i++){ctx.strokeStyle=i%2?palette.wall:palette.roof;ctx.beginPath();ctx.arc(0,0,u*.087,i*Math.PI/4,(i+1)*Math.PI/4+.015);ctx.stroke();}
       ctx.restore();
     }
-    if(!cover)this.effects(ctx,p,u,palette,motion);
-  }
-  effects(ctx,p,u,palette,motion) {
-    for(const f of this.flights){
-      const frac=f.t/this.cfg.balance.collectionSeconds,q=p(f.item.x,f.item.y,-.12),a=p(this.walker.x,this.walker.y,.27);
-      ctx.save();
-      if(motion && frac<.63){ctx.globalAlpha=1-frac;ctx.strokeStyle='#eee1bf';ctx.lineWidth=1.7;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo((a.x+q.x)/2,(a.y+q.y)/2-u*.28,q.x,q.y);ctx.stroke();}
-      for(const [i,t] of f.targets.entries()){
-        const ease=motion?frac*frac:0;
-        const x=q.x+(t.x-q.x)*ease,y=q.y+(t.y-q.y)*ease-(motion?Math.sin(frac*Math.PI)*30:18)-i*17;
-        ctx.globalAlpha=1-Math.pow(frac,4);ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='#315b55';ctx.fillStyle='#fffae8';ctx.strokeText('+'+t.n,x,y);ctx.fillText('+'+t.n,x,y);
-        if(motion)this.sprites.at(ctx,t.id,{x:x-17,y:y-5},31,palette);
+    if(!cover&&motion&&elapsed<state.survival.rainUntil){
+      ctx.save();ctx.strokeStyle=palette.wall;ctx.globalAlpha=.28;ctx.lineWidth=1;ctx.beginPath();
+      for(let i=0;i<42;i++){
+        const x=(i*137.1+time*44)%w,y=(i*89.7+time*355)%h;
+        ctx.moveTo(x,y);ctx.lineTo(x-3,y+13);
       }
-      ctx.restore();
+      ctx.stroke();ctx.restore();
     }
   }
   hit(x,y) {
     for(let i=this.hitList.length-1;i>=0;i--){
       const obj=this.hitList[i];
-      if(obj.item){
-        if(Math.hypot((obj.p.x-x)/Math.max(23,this.camera.unit*.30),(obj.p.y-y)/Math.max(22,this.camera.unit*.17))<=1)return obj;
-      }else if(this.sprites.hit(obj.box,x,y))return obj;
+      if(this.sprites.hit(obj.box,x,y))return obj;
     }
     return null;
   }

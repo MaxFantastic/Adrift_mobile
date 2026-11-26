@@ -1,8 +1,8 @@
 {
   "initial": {
-    "wood": 8,
-    "fiber": 4,
-    "scrap": 2
+    "wood": 2,
+    "fiber": 2,
+    "scrap": 1
   },
   "maxTiles": 64,
   "coordinateLimit": 12,
@@ -40,5 +40,32 @@
     0.65,
     2
   ],
-  "dprCap": 2
+  "dprCap": 2,
+  "survival": {
+    "maxVital": 100,
+    "initialWater": 3,
+    "initialFood": 2,
+    "drinkRestore": 30,
+    "eatRestore": 30,
+    "maxRaftLevel": 3,
+    "netUnlock": 2,
+    "rainWaitSeconds": [900, 2100],
+    "rainDurationSeconds": 26,
+    "rainWater": [1, 3],
+    "jobs": {
+      "gather": {"minutes":15,"energy":16,"hydration":12,"reward":{"wood":5,"fiber":2,"scrap":1}},
+      "filter": {"minutes":15,"water":3},
+      "fish": {"minutes":20,"energy":8,"hydration":5,"food":2},
+      "netFish": {"minutes":45,"energy":14,"hydration":8,"food":5},
+      "rest": {"minutes":15,"restore":40},
+      "bench": {"minutes":20,"stepMinutes":10,"cost":{"wood":3,"fiber":1}},
+      "lighthouse": {"minutes":25,"stepMinutes":10,"cost":{"wood":3,"scrap":2}},
+      "expedition": {"minutes":35,"energy":22,"hydration":16,"waterCost":1,"reward":{"wood":4,"fiber":3,"scrap":2}},
+      "rod": {"minutes":15,"stepMinutes":10,"cost":{"wood":4,"fiber":1}},
+      "net": {"minutes":30,"stepMinutes":15,"cost":{"wood":4,"fiber":3,"scrap":1}},
+      "raft": {"minutes":60,"stepMinutes":60,"cost":{"wood":8,"fiber":4,"scrap":3}},
+      "build": {"minutes":15},
+      "demolish": {"minutes":15}
+    }
+  }
 }

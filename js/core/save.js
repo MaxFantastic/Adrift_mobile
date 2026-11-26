@@ -1,14 +1,16 @@
 import {connected,foundation,key} from '../systems/building.js';
+import {initialSurvival} from './state.js';
+import {planTask} from '../systems/survival.js';
 
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const natural = n => Number.isSafeInteger(n) && n >= 0;
 const clone = v => JSON.parse(JSON.stringify(v));
-const migrations = new Map(); // schema 1 is the first published format.
+const migrations = new Map([[1,(s,cfg)=>({...s,schemaVersion:2,survival:initialSurvival(cfg)})]]);
 function requireValue(condition,message) { if (!condition) throw new Error(message); }
 export function validate(input,cfg) {
   requireValue(object(input),'存档应为 JSON 对象');
   let s=input;
-  while (migrations.has(s.schemaVersion)) s=migrations.get(s.schemaVersion)(s);
+  while (migrations.has(s.schemaVersion)) s=migrations.get(s.schemaVersion)(s,cfg);
   requireValue(s.schemaVersion===cfg.version.schemaVersion,'无法读取这个存档结构版本');
   requireValue(typeof s.gameVersion==='string' && /^\d+\.\d+\.\d+$/.test(s.gameVersion),'游戏版本字段无效');
   requireValue(typeof s.savedAt==='string' && Number.isFinite(Date.parse(s.savedAt)),'保存时间无效');
@@ -32,9 +34,38 @@ export function validate(input,cfg) {
   const step=s.tutorial?.step;
   requireValue(natural(step)&&step<=3&&s.tutorial.completed===(step===3),'引导进度无效');
   requireValue(Array.isArray(s.log)&&s.log.length<=cfg.balance.maxLog&&s.log.every(l=>object(l)&&natural(l.time)&&l.time<=elapsed&&typeof l.text==='string'&&l.text.length<=220),'日志记录无效');
-  return {schemaVersion:s.schemaVersion,gameVersion:cfg.version.version,savedAt:s.savedAt,clock:{elapsedSeconds:elapsed},
+  const clean = {schemaVersion:s.schemaVersion,gameVersion:cfg.version.version,savedAt:s.savedAt,clock:{elapsedSeconds:elapsed},
     inventory:Object.fromEntries(resources.map(k=>[k,s.inventory[k]])),raft:{tiles:cleaned},tutorial:{step,completed:step===3},
     log:s.log.map(({time,text})=>({time,text}))};
+  clean.survival = validateSurvival(s.survival,clean,cfg);
+  return clean;
+}
+
+function validateSurvival(s,state,cfg) {
+  const rules = cfg.balance.survival;
+  requireValue(object(s),'生存记录无效');
+  const fields = {energy:rules.maxVital,hydration:rules.maxVital,water:1e9,food:1e9,
+    raftLevel:rules.maxRaftLevel,benchLevel:s.raftLevel,lighthouseLevel:s.raftLevel,
+    rodLevel:s.benchLevel,netLevel:s.benchLevel};
+  requireValue(Object.entries(fields).every(([k,max])=>natural(s[k]) && s[k]<=max) && s.raftLevel>=1,'补给或等级无效');
+  requireValue(!s.netLevel || s.benchLevel>=rules.netUnlock,'渔网等级无效');
+  const gameTime = n=>Number.isFinite(n) && n>=0 && n<Number.MAX_SAFE_INTEGER;
+  requireValue(gameTime(s.rainUntil) && (s.rainAt===null || (gameTime(s.rainAt) && s.rainAt>=s.rainUntil)),'天气记录无效');
+  const clean = {...Object.fromEntries(Object.keys(fields).map(k=>[k,s[k]])),rainAt:s.rainAt,rainUntil:s.rainUntil,task:null};
+  if (s.task === null) return clean;
+  const task = s.task;
+  requireValue(object(task) && typeof task.id==='string' && natural(task.startedAt) && natural(task.endsAt)
+    && task.endsAt>task.startedAt && natural(task.roll) && task.roll<10000,'行动记录无效');
+  let target = null;
+  if (task.id==='build' || task.id==='demolish') {
+    const t = task.target;
+    requireValue(object(t) && [t.x,t.y].every(n=>Number.isInteger(n)&&Math.abs(n)<=cfg.balance.coordinateLimit),'施工目标无效');
+    target = task.id==='build' ? {x:t.x,y:t.y,item:t.item} : {x:t.x,y:t.y,layer:t.layer};
+  } else requireValue(task.target===null,'行动目标无效');
+  const plan = planTask({...state,survival:clean},cfg,task.id,target,true);
+  requireValue(!plan.reason && task.endsAt-task.startedAt===plan.minutes*60000,'行动时长或需求无效');
+  clean.task = {id:task.id,target,startedAt:task.startedAt,endsAt:task.endsAt,roll:task.roll};
+  return clean;
 }
 
 export function parseSave(raw,cfg) {
